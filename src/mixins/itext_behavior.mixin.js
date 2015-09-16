@@ -9,6 +9,7 @@
      */
     initBehavior: function() {
       this.initAddedHandler();
+      this.initRemovedHandler();
       this.initCursorSelectionHandlers();
       this.initDoubleClickSimulation();
     },
@@ -30,10 +31,32 @@
      * Initializes "added" event handler
      */
     initAddedHandler: function() {
+      var _this = this;
       this.on('added', function() {
         if (this.canvas && !this.canvas._hasITextHandlers) {
           this.canvas._hasITextHandlers = true;
           this._initCanvasHandlers();
+        }
+
+        // Track IText instances per-canvas. Only register in this array once added
+        // to a canvas; we don't want to leak a reference to the instance forever
+        // simply because it existed at some point.
+        //
+        // (Might be added to a collection, but not on a canvas.)
+        if (_this.canvas) {
+          _this.canvas._iTextInstances = _this.canvas._iTextInstances || [];
+          _this.canvas._iTextInstances.push(_this);
+        }
+      });
+    },
+
+    initRemovedHandler: function() {
+      var _this = this;
+      this.on('removed', function() {
+        // (Might be removed from a collection, but not on a canvas.)
+        if (_this.canvas) {
+          _this.canvas._iTextInstances = _this.canvas._iTextInstances || [];
+          fabric.util.removeFromArray(_this.canvas._iTextInstances, _this);
         }
       });
     },
@@ -42,18 +65,22 @@
      * @private
      */
     _initCanvasHandlers: function() {
+      var _this = this;
+
       this.canvas.on('selection:cleared', function() {
-        fabric.IText.prototype.exitEditingOnOthers.call();
+        fabric.IText.prototype.exitEditingOnOthers(_this.canvas);
       });
 
       this.canvas.on('mouse:up', function() {
-        fabric.IText.instances.forEach(function(obj) {
-          obj.__isMousedown = false;
-        });
+        if (_this.canvas._iTextInstances) {
+          _this.canvas._iTextInstances.forEach(function(obj) {
+            obj.__isMousedown = false;
+          });
+        }
       });
 
-      this.canvas.on('object:selected', function(options) {
-        fabric.IText.prototype.exitEditingOnOthers.call(options.target);
+      this.canvas.on('object:selected', function() {
+        fabric.IText.prototype.exitEditingOnOthers(_this.canvas);
       });
     },
 
@@ -61,8 +88,16 @@
      * @private
      */
     _tick: function() {
+      this._currentTickState = this._animateCursor(this, 1, this.cursorDuration, '_onTickComplete');
+    },
 
-      var tickState, _this = this;
+    /**
+     * @private
+     */
+    _animateCursor: function(obj, targetOpacity, duration, completeMethod) {
+
+      var tickState;
+
       tickState = {
         isAborted: false,
         abort: function() {
@@ -70,26 +105,24 @@
         },
       };
 
-      this.animate('_currentCursorOpacity', 1, {
-
-        duration: this.cursorDuration,
-
+      obj.animate('_currentCursorOpacity', targetOpacity, {
+        duration: duration,
         onComplete: function() {
           if (!tickState.isAborted) {
-            _this._onTickComplete();
+            obj[completeMethod]();
           }
         },
-
         onChange: function() {
-          _this.canvas && _this.canvas.renderAll();
+          if (obj.canvas) {
+            obj.canvas.clearContext(obj.canvas.contextTop || obj.ctx);
+            obj.renderCursorOrSelection();
+          }
         },
-
         abort: function() {
           return tickState.isAborted;
         }
       });
-
-      this._currentTickState = tickState;
+      return tickState;
     },
 
     /**
@@ -97,34 +130,14 @@
      */
     _onTickComplete: function() {
 
-      var tickState, _this = this;
-      tickState = {
-        isAborted: false,
-        abort: function() {
-          this.isAborted = true;
-        },
-      };
+      var _this = this;
+
       if (this._cursorTimeout1) {
         clearTimeout(this._cursorTimeout1);
       }
       this._cursorTimeout1 = setTimeout(function() {
-        _this.animate('_currentCursorOpacity', 0, {
-          duration: this.cursorDuration / 2,
-          onComplete: function() {
-            if (!tickState.isAborted) {
-              _this._tick();
-            }
-          },
-          onChange: function() {
-            _this.canvas && _this.canvas.renderAll();
-          },
-          abort: function() {
-            return tickState.isAborted;
-          }
-        });
+        _this._currentTickCompleteState = _this._animateCursor(_this, 0, this.cursorDuration / 2, '_tick');
       }, 100);
-
-      this._currentTickCompleteState = tickState;
     },
 
     /**
@@ -134,12 +147,13 @@
       var _this = this,
           delay = restart ? 0 : this.cursorDelay;
 
-      if (restart) {
-        this._currentTickState && this._currentTickState.abort();
-        this._currentTickCompleteState && this._currentTickCompleteState.abort();
-        clearTimeout(this._cursorTimeout1);
-        this._currentCursorOpacity = 1;
-        this.canvas && this.canvas.renderAll();
+      this._currentTickState && this._currentTickState.abort();
+      this._currentTickCompleteState && this._currentTickCompleteState.abort();
+      clearTimeout(this._cursorTimeout1);
+      this._currentCursorOpacity = 1;
+      if (this.canvas) {
+        this.canvas.clearContext(this.canvas.contextTop || this.ctx);
+        this.renderCursorOrSelection();
       }
       if (this._cursorTimeout2) {
         clearTimeout(this._cursorTimeout2);
@@ -160,7 +174,7 @@
       clearTimeout(this._cursorTimeout2);
 
       this._currentCursorOpacity = 0;
-      this.canvas && this.canvas.renderAll();
+      this.canvas && this.canvas.clearContext(this.canvas.contextTop || this.ctx);
     },
 
     /**
@@ -304,7 +318,6 @@
 
       this.setSelectionStart(newSelectionStart);
       this.setSelectionEnd(newSelectionEnd);
-      this.initDelayedCursor(true);
     },
 
     /**
@@ -317,7 +330,6 @@
 
       this.setSelectionStart(newSelectionStart);
       this.setSelectionEnd(newSelectionEnd);
-      this.initDelayedCursor(true);
     },
 
     /**
@@ -330,7 +342,9 @@
         return;
       }
 
-      this.exitEditingOnOthers();
+      if (this.canvas) {
+        this.exitEditingOnOthers(this.canvas);
+      }
 
       this.isEditing = true;
 
@@ -353,13 +367,15 @@
       return this;
     },
 
-    exitEditingOnOthers: function() {
-      fabric.IText.instances.forEach(function(obj) {
-        obj.selected = false;
-        if (obj.isEditing) {
-          obj.exitEditing();
-        }
-      }, this);
+    exitEditingOnOthers: function(canvas) {
+      if (canvas._iTextInstances) {
+        canvas._iTextInstances.forEach(function(obj) {
+          obj.selected = false;
+          if (obj.isEditing) {
+            obj.exitEditing();
+          }
+        });
+      }
     },
 
     /**
@@ -527,8 +543,8 @@
         this.insertStyleObjects(_chars, isEndOfLine, useCopiedStyle);
       }
       // else if (this.selectionEnd - this.selectionStart > 1) {
-        // TODO: replace styles properly
-        // console.log('replacing MORE than 1 char');
+      // TODO: replace styles properly
+      // console.log('replacing MORE than 1 char');
       // }
       this.setSelectionStart(this.selectionStart + _chars.length);
       this.setSelectionEnd(this.selectionStart);

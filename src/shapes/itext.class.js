@@ -2,52 +2,52 @@
 
   var clone = fabric.util.object.clone;
 
-   /**
-    * IText class (introduced in <b>v1.4</b>) Events are also fired with "text:"
-    * prefix when observing canvas.
-    * @class fabric.IText
-    * @extends fabric.Text
-    * @mixes fabric.Observable
-    *
-    * @fires changed
-    * @fires selection:changed
-    * @fires editing:entered
-    * @fires editing:exited
-    *
-    * @return {fabric.IText} thisArg
-    * @see {@link fabric.IText#initialize} for constructor definition
-    *
-    * <p>Supported key combinations:</p>
-    * <pre>
-    *   Move cursor:                    left, right, up, down
-    *   Select character:               shift + left, shift + right
-    *   Select text vertically:         shift + up, shift + down
-    *   Move cursor by word:            alt + left, alt + right
-    *   Select words:                   shift + alt + left, shift + alt + right
-    *   Move cursor to line start/end:  cmd + left, cmd + right or home, end
-    *   Select till start/end of line:  cmd + shift + left, cmd + shift + right or shift + home, shift + end
-    *   Jump to start/end of text:      cmd + up, cmd + down
-    *   Select till start/end of text:  cmd + shift + up, cmd + shift + down or shift + pgUp, shift + pgDown
-    *   Delete character:               backspace
-    *   Delete word:                    alt + backspace
-    *   Delete line:                    cmd + backspace
-    *   Forward delete:                 delete
-    *   Copy text:                      ctrl/cmd + c
-    *   Paste text:                     ctrl/cmd + v
-    *   Cut text:                       ctrl/cmd + x
-    *   Select entire text:             ctrl/cmd + a
-    *   Quit editing                    tab or esc
-    * </pre>
-    *
-    * <p>Supported mouse/touch combination</p>
-    * <pre>
-    *   Position cursor:                click/touch
-    *   Create selection:               click/touch & drag
-    *   Create selection:               click & shift + click
-    *   Select word:                    double click
-    *   Select line:                    triple click
-    * </pre>
-    */
+  /**
+   * IText class (introduced in <b>v1.4</b>) Events are also fired with "text:"
+   * prefix when observing canvas.
+   * @class fabric.IText
+   * @extends fabric.Text
+   * @mixes fabric.Observable
+   *
+   * @fires changed
+   * @fires selection:changed
+   * @fires editing:entered
+   * @fires editing:exited
+   *
+   * @return {fabric.IText} thisArg
+   * @see {@link fabric.IText#initialize} for constructor definition
+   *
+   * <p>Supported key combinations:</p>
+   * <pre>
+   *   Move cursor:                    left, right, up, down
+   *   Select character:               shift + left, shift + right
+   *   Select text vertically:         shift + up, shift + down
+   *   Move cursor by word:            alt + left, alt + right
+   *   Select words:                   shift + alt + left, shift + alt + right
+   *   Move cursor to line start/end:  cmd + left, cmd + right or home, end
+   *   Select till start/end of line:  cmd + shift + left, cmd + shift + right or shift + home, shift + end
+   *   Jump to start/end of text:      cmd + up, cmd + down
+   *   Select till start/end of text:  cmd + shift + up, cmd + shift + down or shift + pgUp, shift + pgDown
+   *   Delete character:               backspace
+   *   Delete word:                    alt + backspace
+   *   Delete line:                    cmd + backspace
+   *   Forward delete:                 delete
+   *   Copy text:                      ctrl/cmd + c
+   *   Paste text:                     ctrl/cmd + v
+   *   Cut text:                       ctrl/cmd + x
+   *   Select entire text:             ctrl/cmd + a
+   *   Quit editing                    tab or esc
+   * </pre>
+   *
+   * <p>Supported mouse/touch combination</p>
+   * <pre>
+   *   Position cursor:                click/touch
+   *   Create selection:               click/touch & drag
+   *   Create selection:               click & shift + click
+   *   Select word:                    double click
+   *   Select line:                    triple click
+   * </pre>
+   */
   fabric.IText = fabric.util.createClass(fabric.Text, fabric.Observable, /** @lends fabric.IText.prototype */ {
 
     /**
@@ -184,9 +184,6 @@
       this.styles = options ? (options.styles || { }) : { };
       this.callSuper('initialize', text, options);
       this.initBehavior();
-
-      fabric.IText.instances.push(this);
-
     },
 
     /**
@@ -195,6 +192,7 @@
     _clearCache: function() {
       this.callSuper('_clearCache');
       this.__maxFontHeights = [ ];
+      this.__widthOfSpace = [ ];
     },
 
     /**
@@ -284,6 +282,8 @@
           this._extendStyles(i, styles);
         }
       }
+      /* not included in _extendStyles to avoid clearing cache more than once */
+      this._clearCache();
       return this;
     },
 
@@ -299,7 +299,6 @@
       if (!this.styles[loc.lineIndex][loc.charIndex]) {
         this.styles[loc.lineIndex][loc.charIndex] = { };
       }
-
       fabric.util.object.extend(this.styles[loc.lineIndex][loc.charIndex], styles);
     },
 
@@ -322,16 +321,29 @@
       }
 
       var chars = this.text.split(''),
-          boundaries;
+          boundaries, ctx;
+
+      if (this.canvas.contextTop) {
+        ctx = this.canvas.contextTop;
+        ctx.save();
+        ctx.transform.apply(ctx, this.canvas.viewportTransform);
+        this.transform(ctx);
+      }
+      else {
+        ctx = this.ctx;
+        ctx.save();
+      }
 
       if (this.selectionStart === this.selectionEnd) {
         boundaries = this._getCursorBoundaries(chars, 'cursor');
-        this.renderCursor(boundaries);
+        this.renderCursor(boundaries, ctx);
       }
       else {
         boundaries = this._getCursorBoundaries(chars, 'selection');
-        this.renderSelection(chars, boundaries);
+        this.renderSelection(chars, boundaries, ctx);
       }
+
+      ctx.restore();
     },
 
     /**
@@ -407,8 +419,8 @@
      */
     _getCursorBoundaries: function(chars, typeOfBoundaries) {
 
-          // left/top are left/top of entire text box
-          // leftOffset/topOffset are offset from that left/top point of a text box
+      // left/top are left/top of entire text box
+      // leftOffset/topOffset are offset from that left/top point of a text box
 
       var left = Math.round(this._getLeftOffset()),
           top = this._getTopOffset(),
@@ -476,18 +488,16 @@
     /**
      * Renders cursor
      * @param {Object} boundaries
+     * @param {CanvasRenderingContext2D} ctx transformed context to draw on
      */
-    renderCursor: function(boundaries) {
-      var ctx = this.ctx;
-
-      ctx.save();
+    renderCursor: function(boundaries, ctx) {
 
       var cursorLocation = this.get2DCursorLocation(),
           lineIndex = cursorLocation.lineIndex,
           charIndex = cursorLocation.charIndex,
           charHeight = this.getCurrentCharFontSize(lineIndex, charIndex),
           leftOffset = (lineIndex === 0 && charIndex === 0)
-                    ? this._getCachedLineOffset(lineIndex, this.text.split(this._reNewline))
+                    ? this._getCachedLineOffset(lineIndex)
                     : boundaries.leftOffset;
 
       ctx.fillStyle = this.getCurrentCharColor(lineIndex, charIndex);
@@ -499,18 +509,15 @@
         this.cursorWidth / this.scaleX,
         charHeight);
 
-      ctx.restore();
     },
 
     /**
      * Renders text selection
      * @param {Array} chars Array of characters
      * @param {Object} boundaries Object with left/top/leftOffset/topOffset
+     * @param {CanvasRenderingContext2D} ctx transformed context to draw on
      */
-    renderSelection: function(chars, boundaries) {
-      var ctx = this.ctx;
-
-      ctx.save();
+    renderSelection: function(chars, boundaries, ctx) {
 
       ctx.fillStyle = this.selectionColor;
 
@@ -551,7 +558,6 @@
 
         boundaries.topOffset += lineHeight;
       }
-      ctx.restore();
     },
 
     /**
@@ -953,17 +959,8 @@
      * @private
      * @param {CanvasRenderingContext2D} ctx Context to render on
      */
-    _getWidthOfCharAt: function(ctx, lineIndex, charIndex) {
-      var _char = this._textLines[lineIndex].split('')[charIndex];
-      return this._getWidthOfChar(ctx, _char, lineIndex, charIndex);
-    },
-
-    /**
-     * @private
-     * @param {CanvasRenderingContext2D} ctx Context to render on
-     */
     _getHeightOfCharAt: function(ctx, lineIndex, charIndex) {
-      var _char = this._textLines[lineIndex].split('')[charIndex];
+      var _char = this._textLines[lineIndex][charIndex];
       return this._getHeightOfChar(ctx, _char, lineIndex, charIndex);
     },
 
@@ -972,9 +969,10 @@
      * @param {CanvasRenderingContext2D} ctx Context to render on
      */
     _getWidthOfCharsAt: function(ctx, lineIndex, charIndex) {
-      var width = 0;
-      for (var i = 0; i < charIndex; i++) {
-        width += this._getWidthOfCharAt(ctx, lineIndex, i);
+      var width = 0, i, _char;
+      for (i = 0; i < charIndex; i++) {
+        _char = this._textLines[lineIndex][i];
+        width += this._getWidthOfChar(ctx, _char, lineIndex, i);
       }
       return width;
     },
@@ -997,14 +995,15 @@
      * @param {Number} lineIndex
      */
     _getWidthOfSpace: function (ctx, lineIndex) {
-      var lines = this.text.split(this._reNewline),
-          line = lines[lineIndex],
-          words = line.split(/\s+/),
+      if (this.__widthOfSpace[lineIndex]) {
+        return this.__widthOfSpace[lineIndex];
+      }
+      var line = this._textLines[lineIndex],
           wordsWidth = this._getWidthOfWords(ctx, line, lineIndex),
           widthDiff = this.width - wordsWidth,
-          numSpaces = words.length - 1,
+          numSpaces = line.length - line.replace(/\s+/g, '').length,
           width = widthDiff / numSpaces;
-
+      this.__widthOfSpace[lineIndex] = width;
       return width;
     },
 
@@ -1038,11 +1037,10 @@
       }
 
       var line = this._textLines[lineIndex],
-          maxHeight = this._getHeightOfChar(ctx, line[0], lineIndex, 0),
-          chars = line.split('');
+          maxHeight = this._getHeightOfChar(ctx, line[0], lineIndex, 0);
 
-      for (var i = 1, len = chars.length; i < len; i++) {
-        var currentCharHeight = this._getHeightOfChar(ctx, chars[i], lineIndex, i);
+      for (var i = 1, len = line.length; i < len; i++) {
+        var currentCharHeight = this._getHeightOfChar(ctx, line[i], lineIndex, i);
         if (currentCharHeight > maxHeight) {
           maxHeight = currentCharHeight;
         }
@@ -1109,13 +1107,4 @@
   fabric.IText.fromObject = function(object) {
     return new fabric.IText(object.text, clone(object));
   };
-
-  /**
-   * Contains all fabric.IText objects that have been created
-   * @static
-   * @memberof fabric.IText
-   * @type Array
-   */
-  fabric.IText.instances = [ ];
-
 })();

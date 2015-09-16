@@ -3,7 +3,7 @@
   var degreesToRadians = fabric.util.degreesToRadians,
       //jscs:disable requireCamelCaseOrUpperCaseIdentifiers
       isVML = function() { return typeof G_vmlCanvasManager !== 'undefined'; };
-      //jscs:enable requireCamelCaseOrUpperCaseIdentifiers
+  //jscs:enable requireCamelCaseOrUpperCaseIdentifiers
 
   fabric.util.object.extend(fabric.Object.prototype, /** @lends fabric.Object.prototype */ {
 
@@ -276,12 +276,12 @@
      * @private
      */
     _drawControl: function(control, ctx, methodName, left, top) {
-      var size = this.cornerSize;
-
-      if (this.isControlVisible(control)) {
-        isVML() || this.transparentCorners || ctx.clearRect(left, top, size, size);
-        ctx[methodName](left, top, size, size);
+      if (!this.isControlVisible(control)) {
+        return;
       }
+      var size = this.cornerSize;
+      isVML() || this.transparentCorners || ctx.clearRect(left, top, size, size);
+      ctx[methodName](left, top, size, size);
     },
 
     /**
