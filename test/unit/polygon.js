@@ -34,7 +34,16 @@
     'backgroundColor':          '',
     'clipTo':                   null,
     'fillRule':                 'nonzero',
-    'globalCompositeOperation': 'source-over'
+    'globalCompositeOperation': 'source-over',
+    'transformMatrix':          null
+  };
+
+  var REFERENCE_EMPTY_OBJECT = {
+    'points': [],
+    'width': 0,
+    'height': 0,
+    'top': 0,
+    'left': 0
   };
 
   QUnit.module('fabric.Polygon');
@@ -76,6 +85,18 @@
 
   test('fromElement', function() {
     ok(typeof fabric.Polygon.fromElement == 'function');
+
+    var empty_object = fabric.util.object.extend({}, REFERENCE_OBJECT);
+    empty_object = fabric.util.object.extend(empty_object, REFERENCE_EMPTY_OBJECT);
+
+    var elPolygonWithoutPoints = fabric.document.createElement('polygon');
+
+    deepEqual(fabric.Polygon.fromElement(elPolygonWithoutPoints).toObject(), empty_object);
+
+    var elPolygonWithEmptyPoints = fabric.document.createElement('polygon');
+    elPolygonWithEmptyPoints.setAttribute('points', '');
+
+    deepEqual(fabric.Polygon.fromElement(elPolygonWithEmptyPoints).toObject(), empty_object);
 
     var elPolygon = fabric.document.createElement('polygon');
 
@@ -125,19 +146,11 @@
       'opacity':          0.34,
       'points':           expectedPoints,
       'top':              10,
-      'left':             10
+      'left':             10,
+      'transformMatrix':  [ 2, 0, 0, 2, -10, -20 ]
     }));
 
     deepEqual(polygonWithAttrs.get('transformMatrix'), [ 2, 0, 0, 2, -10, -20 ]);
-
-    var elPolygonWithoutPoints = fabric.document.createElement('polygon');
-
-    equal(fabric.Polygon.fromElement(elPolygonWithoutPoints), null);
-
-    var elPolygonWithEmptyPoints = fabric.document.createElement('polygon');
-    elPolygonWithEmptyPoints.setAttribute('points', '');
-
-    equal(fabric.Polygon.fromElement(elPolygonWithEmptyPoints), null);
 
     equal(fabric.Polygon.fromElement(), null);
   });

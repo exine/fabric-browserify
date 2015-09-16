@@ -177,6 +177,31 @@
     equal(gradient.colorStops[0].opacity, 0);
   });
 
+  test('fromElement without stop', function() {
+    ok(typeof fabric.Gradient.fromElement == 'function');
+
+    var element = fabric.document.createElement('linearGradient');
+    var stop1 = fabric.document.createElement('stop');
+    var stop2 = fabric.document.createElement('stop');
+
+    stop1.setAttribute('stop-color', 'white');
+
+    stop2.setAttribute('offset', '100%');
+    stop2.setAttribute('stop-color', 'black');
+    stop2.setAttribute('stop-opacity', '0');
+
+    element.appendChild(stop1);
+    element.appendChild(stop2);
+
+    var object = new fabric.Object({ width: 100, height: 100 });
+    var gradient = fabric.Gradient.fromElement(element, object);
+
+    ok(gradient instanceof fabric.Gradient);
+
+    equal(gradient.colorStops[0].offset, 1);
+    equal(gradient.colorStops[1].offset, 0);
+  });
+
   test('fromElement radialGradient', function() {
     ok(typeof fabric.Gradient.fromElement == 'function');
 
@@ -248,7 +273,7 @@
     equal(gradient.colorStops[0].color, 'rgb(0,0,0)');
     equal(gradient.colorStops[1].color, 'rgb(255,255,255)');
     deepEqual(gradient.gradientTransform, [ 3.321, -0.6998, 0.4077, 1.9347, -440.9168, -408.0598 ]);
-  })
+  });
 
   test('fromElement linearGradient colorStop attributes/styles', function() {
     ok(typeof fabric.Gradient.fromElement == 'function');

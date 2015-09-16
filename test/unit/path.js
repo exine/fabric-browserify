@@ -28,7 +28,8 @@
     'backgroundColor':          '',
     'clipTo':                   null,
     'fillRule':                 'nonzero',
-    'globalCompositeOperation': 'source-over'
+    'globalCompositeOperation': 'source-over',
+    'transformMatrix':          null
   };
 
   function getPathElement(path) {
@@ -70,9 +71,17 @@
         error = err;
       }
 
-      ok(error, 'should throw error');
+      ok(typeof error === 'undefined', 'should not throw error on empty path');
       start();
     });
+  });
+
+  asyncTest('initialize', function() {
+    var path = new fabric.Path('M 100 100 L 200 100 L 170 200 z', { top: 0 });
+
+    equal(path.left, 100);
+    equal(path.top, 0);
+    start();
   });
 
   asyncTest('toString', function() {
@@ -87,6 +96,14 @@
     makePathObject(function(path) {
       ok(typeof path.toObject == 'function');
       deepEqual(path.toObject(), REFERENCE_PATH_OBJECT);
+      start();
+    });
+  });
+
+  asyncTest('toSVG', function() {
+    makePathObject(function(path) {
+      ok(typeof path.toObject == 'function');
+      deepEqual(path.toSVG(), '<path d="M 100 100 L 300 100 L 200 300 z" style="stroke: blue; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: red; fill-rule: nonzero; opacity: 1;" transform="translate(200.5 200.5) translate(-200, -200) " stroke-linecap="round" />\n');
       start();
     });
   });

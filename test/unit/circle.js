@@ -49,7 +49,7 @@
     equal(circle.getWidth(), 20);
     equal(circle.getHeight(), 20);
 
-    circle.setRadius(20);
+    equal(circle, circle.setRadius(20));
 
     equal(circle.getRadiusX(), 20);
     equal(circle.getRadiusY(), 20);
@@ -107,7 +107,8 @@
       'globalCompositeOperation': 'source-over',
       'radius':                   0,
       'startAngle':               0,
-      'endAngle':                 2 * Math.PI
+      'endAngle':                 2 * Math.PI,
+      'transformMatrix':          null
     };
     ok(typeof circle.toObject == 'function');
     deepEqual(circle.toObject(), defaultProperties);
@@ -166,7 +167,7 @@
     equal(oCircle.get('strokeLineJoin'), strokeLineJoin);
     equal(oCircle.get('strokeMiterLimit'), strokeMiterLimit);
 
-    elFaultyCircle = fabric.document.createElement('circle');
+    var elFaultyCircle = fabric.document.createElement('circle');
     elFaultyCircle.setAttribute('r', '-10');
 
     var error;

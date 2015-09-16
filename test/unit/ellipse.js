@@ -49,7 +49,8 @@
       'backgroundColor':          '',
       'fillRule':                 'nonzero',
       'globalCompositeOperation': 'source-over',
-      'clipTo':                   null
+      'clipTo':                   null,
+      'transformMatrix':          null
     };
     ok(typeof ellipse.toObject == 'function');
     deepEqual(ellipse.toObject(), defaultProperties);
@@ -82,7 +83,7 @@
 
     ellipse._render = function(){
       wasRenderCalled = true;
-    }
+    };
     ellipse.render({});
 
     equal(wasRenderCalled, false, 'should not render when rx/ry are 0');

@@ -1,6 +1,11 @@
 (function() {
+  var canvas = this.canvas = new fabric.Canvas();
 
-  QUnit.module('fabric.IText');
+  QUnit.module('fabric.IText', {
+    teardown: function() {
+      canvas.clear();
+    }
+  });
 
   var ITEXT_OBJECT = {
     'type':                     'text',
@@ -9,7 +14,7 @@
     'left':                     0,
     'top':                      0,
     'width':                    20,
-    'height':                   52,
+    'height':                   58.76,
     'fill':                     'rgb(0,0,0)',
     'stroke':                   null,
     'strokeWidth':              1,
@@ -34,12 +39,11 @@
     'lineHeight':               1.3,
     'textDecoration':           '',
     'textAlign':                'left',
-    'path':                     null,
     'backgroundColor':          '',
     'textBackgroundColor':      '',
-    'useNative':                true,
     'fillRule':                 'nonzero',
-    'globalCompositeOperation': 'source-over',    
+    'globalCompositeOperation': 'source-over',
+    'transformMatrix':          null,
     styles:                     { }
   };
 
@@ -61,7 +65,25 @@
 
   test('instances', function() {
     var iText = new fabric.IText('test');
-    var lastInstance = fabric.IText.instances[fabric.IText.instances.length - 1];
+
+    // Not on a sketchpad; storing it in instances array already would leak it forever.
+    var instances = canvas._iTextInstances && canvas._iTextInstances;
+    var lastInstance = instances && instances[instances.length - 1];
+    equal(lastInstance, undefined);
+
+    canvas.add(iText);
+    instances = canvas._iTextInstances && canvas._iTextInstances;
+    lastInstance = instances && instances[instances.length - 1];
+    equal(lastInstance, iText);
+
+    canvas.remove(iText);
+    instances = canvas._iTextInstances && canvas._iTextInstances;
+    lastInstance = instances && instances[instances.length - 1];
+    equal(lastInstance, undefined);
+
+    // Should survive being added again after removal.
+    canvas.add(iText);
+    lastInstance = canvas._iTextInstances && canvas._iTextInstances[canvas._iTextInstances.length - 1];
     equal(lastInstance, iText);
   });
 
@@ -88,6 +110,10 @@
 
     var obj = iText.toObject();
     deepEqual(obj.styles, styles);
+    notEqual(obj.styles[0], styles[0]);
+    notEqual(obj.styles[0][1], styles[0][1]);
+    deepEqual(obj.styles[0], styles[0]);
+    deepEqual(obj.styles[0][1], styles[0][1]);
   });
 
   test('setSelectionStart', function() {
@@ -123,7 +149,7 @@
 
     // 'tes|t'
     iText.selectionStart = iText.selectionEnd = 3;
-    var loc = iText.get2DCursorLocation();
+    loc = iText.get2DCursorLocation();
 
     equal(loc.lineIndex, 0);
     equal(loc.charIndex, 3);
@@ -131,7 +157,7 @@
     // test
     // fo|o
     iText.selectionStart = iText.selectionEnd = 7;
-    var loc = iText.get2DCursorLocation();
+    loc = iText.get2DCursorLocation();
 
     equal(loc.lineIndex, 1);
     equal(loc.charIndex, 2);
@@ -140,7 +166,7 @@
     // foo
     // barba|z
     iText.selectionStart = iText.selectionEnd = 14;
-    var loc = iText.get2DCursorLocation();
+    loc = iText.get2DCursorLocation();
 
     equal(loc.lineIndex, 2);
     equal(loc.charIndex, 5);
@@ -150,7 +176,7 @@
     var iText = new fabric.IText('test');
     ok(iText.isEmptyStyles());
 
-    var iText = new fabric.IText('test', {
+    iText = new fabric.IText('test', {
       styles: {
         0: {
           0: { }
@@ -162,7 +188,7 @@
     });
     ok(iText.isEmptyStyles());
 
-    var iText = new fabric.IText('test', {
+    iText = new fabric.IText('test', {
       styles: {
         0: {
           0: { }
@@ -251,6 +277,51 @@
     iText.insertNewline();
 
     equal(iText.text, 't\nt');
+  });
+
+  test('insertNewlineStyleObject', function() {
+    var iText = new fabric.IText('test\n');
+
+    equal(typeof iText.insertNewlineStyleObject, 'function');
+
+    iText.insertNewlineStyleObject(0, 4, true);
+    deepEqual(iText.styles, { '1': { '0': { } } });
+  });
+
+  test('shiftLineStyles', function() {
+    var iText = new fabric.IText('test\ntest\ntest', {
+      styles: {
+        '1': {
+          '0': { 'fill': 'red' },
+          '1': { 'fill': 'red' },
+          '2': { 'fill': 'red' },
+          '3': { 'fill': 'red' }
+        }
+      }
+    });
+
+    equal(typeof iText.shiftLineStyles, 'function');
+
+    iText.shiftLineStyles(0, +1);
+    deepEqual(iText.styles, {
+      '2': {
+        '0': { 'fill': 'red' },
+        '1': { 'fill': 'red' },
+        '2': { 'fill': 'red' },
+        '3': { 'fill': 'red' }
+      }
+    });
+
+    iText.shiftLineStyles(0, -1);
+    deepEqual(iText.styles, {
+      '1': {
+        '0': { 'fill': 'red' },
+        '1': { 'fill': 'red' },
+        '2': { 'fill': 'red' },
+        '3': { 'fill': 'red' }
+      }
+    });
+
   });
 
   test('selectWord', function() {
@@ -509,7 +580,7 @@
 
     // because translate values differ
     if (!fabric.isLikelyNode) {
-      equal(iText.toSVG(), '<g transform="translate(124.38 52)"><text font-family="Times New Roman" font-size="40" font-weight="normal" style="stroke: none; stroke-width: 1; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(0,0,0); opacity: 1;" transform="translate(-124.38 39)"><tspan x="0" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: #112233; opacity: 1;">t</tspan><tspan x="11.11328125" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;">e</tspan><tspan x="28.8671875" y="0" style="stroke: #223344; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;">s</tspan><tspan x="44.43359375" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;">t</tspan><tspan x="55.546875" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;"> </tspan><tspan x="65.546875" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;">f</tspan><tspan x="78.8671875" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;">o</tspan><tspan x="98.8671875" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;">o</tspan><tspan x="118.8671875" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;"> </tspan><tspan x="128.8671875" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;">b</tspan><tspan x="148.8671875" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;">a</tspan><tspan x="166.62109375" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;">r</tspan><tspan x="179.94140625" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;">-</tspan><tspan x="193.26171875" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;">b</tspan><tspan x="213.26171875" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;">a</tspan><tspan x="231.015625" y="0" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); opacity: 1;">z</tspan><tspan x="0" y="0" fill="rgb(0,0,0)">qux</tspan></text></g>');
+      equal(iText.toSVG(), '\t<g transform=\"translate(124.88 52.93)\">\n\t\t<text font-family=\"Times New Roman\" font-size=\"40\" font-weight=\"normal\" style=\"stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(0,0,0); fill-rule: nonzero; opacity: 1;\" ><tspan x=\"-124.384765625\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: #112233; fill-rule: ; opacity: 1;\">t</tspan><tspan x=\"-113.271484375\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\">e</tspan><tspan x=\"-95.517578125\" y=\"-17.232\" style=\"stroke: #223344; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\">s</tspan><tspan x=\"-79.951171875\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\">t</tspan><tspan x=\"-68.837890625\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\"> </tspan><tspan x=\"-58.837890625\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\">f</tspan><tspan x=\"-45.517578125\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\">o</tspan><tspan x=\"-25.517578125\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\">o</tspan><tspan x=\"-5.517578125\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\"> </tspan><tspan x=\"4.482421875\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\">b</tspan><tspan x=\"24.482421875\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\">a</tspan><tspan x=\"42.236328125\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\">r</tspan><tspan x=\"55.556640625\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\">-</tspan><tspan x=\"68.876953125\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\">b</tspan><tspan x=\"88.876953125\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\">a</tspan><tspan x=\"106.630859375\" y=\"-17.232\" style=\"stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(0,0,0); fill-rule: ; opacity: 1;\">z</tspan><tspan x=\"-124.38\" y=\"35.2\" fill=\"rgb(0,0,0)\">qux</tspan></text>\n\t</g>\n');
     }
 
     // TODO: more SVG tests here?

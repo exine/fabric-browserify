@@ -3,7 +3,7 @@
   /* _FROM_SVG_START_ */
   function getColorStop(el) {
     var style = el.getAttribute('style'),
-        offset = el.getAttribute('offset'),
+        offset = el.getAttribute('offset') || 0,
         color, colorAlpha, opacity;
 
     // convert percents to absolute values
@@ -241,14 +241,14 @@
      * @return {CanvasGradient}
      */
     toLive: function(ctx, object) {
-      var gradient, coords = fabric.util.object.clone(this.coords);
+      var gradient, prop, coords = fabric.util.object.clone(this.coords);
 
       if (!this.type) {
         return;
       }
 
       if (object.group && object.group.type === 'path-group') {
-        for (var prop in coords) {
+        for (prop in coords) {
           if (prop === 'x1' || prop === 'x2') {
             coords[prop] += -this.offsetX + object.width / 2;
           }
@@ -288,7 +288,7 @@
     /**
      * Returns {@link fabric.Gradient} instance from an SVG element
      * @static
-     * @memberof fabric.Gradient
+     * @memberOf fabric.Gradient
      * @param {SVGGradientElement} el SVG gradient element
      * @param {fabric.Object} instance
      * @return {fabric.Gradient} Gradient instance
@@ -368,7 +368,7 @@
     /**
      * Returns {@link fabric.Gradient} instance from its object representation
      * @static
-     * @memberof fabric.Gradient
+     * @memberOf fabric.Gradient
      * @param {Object} obj
      * @param {Object} [options] Options object
      */

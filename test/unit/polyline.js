@@ -34,7 +34,16 @@
     'backgroundColor':          '',
     'clipTo':                   null,
     'fillRule':                 'nonzero',
-    'globalCompositeOperation': 'source-over'
+    'globalCompositeOperation': 'source-over',
+    'transformMatrix':          null
+  };
+
+  var REFERENCE_EMPTY_OBJECT = {
+    'points': [],
+    'width': 0,
+    'height': 0,
+    'top': 0,
+    'left': 0
   };
 
   QUnit.module('fabric.Polyline');
@@ -76,6 +85,17 @@
   test('fromElement', function() {
     ok(typeof fabric.Polyline.fromElement == 'function');
 
+    var elPolylineWithoutPoints = fabric.document.createElement('polyline');
+    var empty_object = fabric.util.object.extend({}, REFERENCE_OBJECT);
+    empty_object = fabric.util.object.extend(empty_object, REFERENCE_EMPTY_OBJECT);
+
+    deepEqual(fabric.Polyline.fromElement(elPolylineWithoutPoints).toObject(), empty_object);
+
+    var elPolylineWithEmptyPoints = fabric.document.createElement('polyline');
+    elPolylineWithEmptyPoints.setAttribute('points', '');
+
+    deepEqual(fabric.Polyline.fromElement(elPolylineWithEmptyPoints).toObject(), empty_object);
+
     var elPolyline = fabric.document.createElement('polyline');
 
     elPolyline.setAttribute('points', '10,12 20,22');
@@ -114,18 +134,11 @@
       'opacity': 0.34,
       'points': expectedPoints,
       'left': 10,
-      'top': 10
+      'top': 10,
+      'transformMatrix' : [ 2, 0, 0, 2, -10, -20 ]
     }));
 
     deepEqual(polylineWithAttrs.get('transformMatrix'), [ 2, 0, 0, 2, -10, -20 ]);
-
-    var elPolylineWithoutPoints = fabric.document.createElement('polyline');
-    equal(fabric.Polyline.fromElement(elPolylineWithoutPoints), null);
-
-    var elPolylineWithEmptyPoints = fabric.document.createElement('polyline');
-    elPolylineWithEmptyPoints.setAttribute('points', '');
-
-    equal(fabric.Polyline.fromElement(elPolylineWithEmptyPoints), null);
 
     equal(fabric.Polyline.fromElement(), null);    
   });

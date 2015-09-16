@@ -26,9 +26,20 @@
     'clipTo':                   null,
     'backgroundColor':          '',
     'fillRule':                 'nonzero',
-    'globalCompositeOperation': 'source-over',    
+    'globalCompositeOperation': 'source-over',
+    'transformMatrix':          null,
     'paths':                    getPathObjects()
   };
+
+  var REFERENCE_PATH_GROUP_SVG = '<g style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: none; fill-rule: nonzero; opacity: 1;" transform="translate(0 0)" >\n' +
+    '\t<path d="M 100 100 L 300 100 L 200 300 z" style="stroke: blue; stroke-width: 3; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(255,0,0); fill-rule: nonzero; opacity: 1;" transform="" stroke-linecap="round" />\n' +
+    '\t<path d="M 200 200 L 100 200 L 400 50 z" style="stroke: blue; stroke-width: 3; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(255,0,0); fill-rule: nonzero; opacity: 1;" transform="" stroke-linecap="round" />\n' +
+    '</g>\n';
+
+  var REFERENCE_PATH_GROUP_SVG_WITH_MATRIX = '<g style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: none; fill-rule: nonzero; opacity: 1;" transform=" matrix(1 2 3 4 5 6) translate(0 0)" >\n' +
+    '\t<path d="M 100 100 L 300 100 L 200 300 z" style="stroke: blue; stroke-width: 3; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(255,0,0); fill-rule: nonzero; opacity: 1;" transform="" stroke-linecap="round" />\n' +
+    '\t<path d="M 200 200 L 100 200 L 400 50 z" style="stroke: blue; stroke-width: 3; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(255,0,0); fill-rule: nonzero; opacity: 1;" transform="" stroke-linecap="round" />\n' +
+    '</g>\n';
 
   function getPathElement(path) {
     var el = fabric.document.createElement('path');
@@ -65,9 +76,10 @@
     });
   }
 
-  function getPathGroupObject(callback) {
+  function getPathGroupObject(callback, options) {
+    options = options || { };
     getPathObjects(function(objects) {
-      callback(new fabric.PathGroup(objects));
+      callback(new fabric.PathGroup(objects, options));
     });
   }
 
@@ -84,6 +96,28 @@
       equal(pathGroup.get('type'), 'path-group');
       start();
     });
+  });
+
+  asyncTest('parsingDmensions', function() {
+
+    getPathGroupObject(function(pathGroup) {
+
+      ok(pathGroup instanceof fabric.PathGroup);
+      ok(pathGroup instanceof fabric.Object);
+      //this.assertHasMixin(Enumerable, pathGroup);
+      equal(pathGroup.get('type'), 'path-group');
+      equal(pathGroup.width, 403);
+      equal(pathGroup.height, 303);
+      start();
+    }, {toBeParsed: true});
+  });
+
+  test('parsingDmensionsWithTransformMatrix', function() {
+      var pathA = new fabric.Path("M 100 100 L 300 100 L 200 300 z", {transformMatrix: [2, 0, 0, 2, 0, 0]}),
+          pathB = new fabric.Path("M 200 200 L 100 200 L 400 50 z", {transformMatrix: [3, 0, 0, 3, 0, 0]}),
+          pg = new fabric.PathGroup([pathA, pathB], {toBeParsed: true});
+      equal(pg.width, 1203);
+      equal(pg.height, 603);
   });
 
   asyncTest('getObjects', function() {
@@ -103,19 +137,15 @@
   asyncTest('toObject', function() {
     getPathGroupObject(function(pathGroup) {
       ok(typeof pathGroup.toObject == 'function');
+
       var object = pathGroup.toObject();
+      ok(typeof object == 'object');
+
       start();
     });
   });
 
   asyncTest('complexity', function() {
-    function sum(objects) {
-      var i = objects.length, total = 0;
-      while (i--) {
-        total += objects[i];
-      }
-      return total;
-    }
     getPathGroupObject(function(pathGroup) {
 
       ok(typeof pathGroup.complexity == 'function');
@@ -218,6 +248,33 @@
       pathGroup.set('left', 1234);
       ok(pathGroup.getObjects()[0].get('left') !== 1234);
       equal(pathGroup.get('left'), 1234);
+      start();
+    });
+  });
+
+  asyncTest('toSVG', function() {
+    ok(fabric.PathGroup);
+    getPathGroupObject(function(pathGroup) {
+      ok(typeof pathGroup.toSVG == 'function');
+      equal(pathGroup.toSVG(), REFERENCE_PATH_GROUP_SVG);
+      pathGroup.transformMatrix = [1, 2, 3, 4, 5, 6];
+      equal(pathGroup.toSVG(), REFERENCE_PATH_GROUP_SVG_WITH_MATRIX);
+      start();
+    });
+  });
+
+  asyncTest('toSVGCenterOrigin', function() {
+    ok(fabric.PathGroup);
+    getPathGroupObject(function(pathGroup) {
+      ok(typeof pathGroup.toSVG == 'function');
+      pathGroup.strokeWidth = 0;
+      pathGroup.originX = 'center';
+      pathGroup.originY = 'center';
+      pathGroup.width = 700;
+      pathGroup.height = 600;
+      pathGroup.left = 350;
+      pathGroup.top = 300;
+      equal(pathGroup.toSVG(), REFERENCE_PATH_GROUP_SVG.replace('stroke-width: 1', 'stroke-width: 0'));
       start();
     });
   });

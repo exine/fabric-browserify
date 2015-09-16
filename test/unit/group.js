@@ -1,14 +1,24 @@
 (function() {
 
-  var canvas = this.canvas = new fabric.Canvas();
+  var el = fabric.document.createElement('canvas');
+  el.width = 600; el.height = 600;
 
-  function _createImageElement() {
-    return fabric.isLikelyNode ? new (require('canvas').Image) : fabric.document.createElement('img');
-  }
+  var canvas = this.canvas = fabric.isLikelyNode ? fabric.createCanvasForNode() : new fabric.Canvas(el);
+
+  // function _createImageElement() {
+  //   return fabric.isLikelyNode ? new (require('canvas').Image)() : fabric.document.createElement('img');
+  // }
 
   function makeGroupWith2Objects() {
     var rect1 = new fabric.Rect({ top: 100, left: 100, width: 30, height: 10, strokeWidth: 0 }),
         rect2 = new fabric.Rect({ top: 120, left: 50, width: 10, height: 40, strokeWidth: 0 });
+
+    return new fabric.Group([ rect1, rect2 ], {strokeWidth: 0});
+  }
+
+  function makeGroupWith2ObjectsWithOpacity() {
+    var rect1 = new fabric.Rect({ top: 100, left: 100, width: 30, height: 10, strokeWidth: 0, opacity: 0.5 }),
+        rect2 = new fabric.Rect({ top: 120, left: 50, width: 10, height: 40, strokeWidth: 0, opacity: 0.8 });
 
     return new fabric.Group([ rect1, rect2 ], {strokeWidth: 0});
   }
@@ -180,6 +190,7 @@
       'opacity':                  1,
       'fillRule':                 'nonzero',
       'globalCompositeOperation': 'source-over',
+      'transformMatrix':          null,
       'objects':                  clone.objects
     };
 
@@ -201,7 +212,6 @@ test('toObject without default values', function() {
     'top':                100,
     'width':              80,
     'height':             60,
-    'strokeWidth':        0,
     'objects':            clone.objects
   };
 
@@ -361,7 +371,7 @@ test('toObject without default values', function() {
   });
 
   asyncTest('fromObject', function() {
-    var group = makeGroupWith2Objects();
+    var group = makeGroupWith2ObjectsWithOpacity();
 
     ok(typeof fabric.Group.fromObject == 'function');
     var groupObject = group.toObject();
@@ -372,6 +382,9 @@ test('toObject without default values', function() {
       var objectFromNewGroup = newGroupFromObject.toObject();
 
       ok(newGroupFromObject instanceof fabric.Group);
+
+      deepEqual(objectFromOldGroup.objects[0], objectFromNewGroup.objects[0]);
+      deepEqual(objectFromOldGroup.objects[1], objectFromNewGroup.objects[1]);
 
       // delete `objects` arrays, since `assertHashEqual` fails to compare them for equality
       delete objectFromOldGroup.objects;
@@ -387,7 +400,7 @@ test('toObject without default values', function() {
     var group = makeGroupWith2Objects();
     ok(typeof group.toSVG == 'function');
 
-    var expectedSVG = '<g transform="translate(90 130)">\n<rect x="-15" y="-5" rx="0" ry="0" width="30" height="10" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(0,0,0); fill-rule: nonzero; opacity: 1;" transform="translate(25 -25)"/>\n<rect x="-5" y="-20" rx="0" ry="0" width="10" height="40" style="stroke: none; stroke-width: 0; stroke-dasharray: ; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(0,0,0); fill-rule: nonzero; opacity: 1;" transform="translate(-35 10)"/>\n</g>\n';
+    var expectedSVG = '<g transform="translate(90 130)" style="">\n\t<rect x="-15" y="-5" rx="0" ry="0" width="30" height="10" style="stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(0,0,0); fill-rule: nonzero; opacity: 1;" transform="translate(25 -25)"/>\n\t<rect x="-5" y="-20" rx="0" ry="0" width="10" height="40" style="stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(0,0,0); fill-rule: nonzero; opacity: 1;" transform="translate(-35 10)"/>\n</g>\n';
     equal(group.toSVG(), expectedSVG);
   });
 
@@ -479,6 +492,39 @@ test('toObject without default values', function() {
     equal(group.insertAt(rect1, 2), group, 'should be chainable');
   });
 
+  test('canvas property propagation', function() {
+    var g1 = makeGroupWith4Objects(),
+        g2 = makeGroupWith4Objects(),
+        rect1 = new fabric.Rect(),
+        rect2 = new fabric.Rect(),
+        group1 = new fabric.Group([g1]);
+
+    group1.add(g2);
+    group1.insertAt(rect1, 0);
+    g2.insertAt(rect2, 0);
+
+    canvas.add(group1);
+    equal(g2.canvas, canvas);
+    equal(g2._objects[3].canvas, canvas);
+    equal(g1.canvas, canvas);
+    equal(g1._objects[3].canvas, canvas);
+    equal(rect2.canvas, canvas);
+    equal(rect1.canvas, canvas);
+  });
+
+  test('test group transformMatrix', function() {
+    var rect1 = new fabric.Rect({ top: 100, left: 100, width: 10, height: 10, strokeWidth: 0 }),
+        rect2 = new fabric.Rect({ top: 120, left: 120, width: 10, height: 10, strokeWidth: 0 }),
+        group = new fabric.Group([ rect1, rect2 ]),
+        ctx = canvas.contextContainer, isTransparent = fabric.util.isTransparent;
+    canvas.add(group);
+    equal(isTransparent(ctx, 80, 80, 0), true);
+    equal(isTransparent(ctx, 101, 101, 0), false);
+    group.transformMatrix = [1.2, 0, 0, 1.2, 1, 1];
+    canvas.renderAll();
+    equal(isTransparent(ctx, 101, 101, 0), true);
+    equal(isTransparent(ctx, 131, 131, 0), false);
+  });
   // asyncTest('cloning group with image', function() {
   //   var rect = new fabric.Rect({ top: 100, left: 100, width: 30, height: 10 }),
   //       img = new fabric.Image(_createImageElement()),
